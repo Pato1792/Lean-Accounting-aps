@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import io
+from datetime import datetime
 import openpyxl
 
 # Configuración de página
@@ -64,11 +65,13 @@ def mostrar_tarjetas(df):
     for index, row in df.iterrows():
         st.markdown(f"""
         <div style='background-color: #f9f9f9; padding: 10px; margin: 10px 0; border-radius: 10px;'>
-            <h4>{row['Flujo']}</h4>
+            <h4>{row['Flujo']} - {row['Fecha']}</h4>
             <b>Ingresos:</b> ${row['Ingresos']:,.2f}<br>
             <b>Costos Directos:</b> ${row['Costos Directos']:,.2f}<br>
             <b>Costos Indirectos:</b> ${row['Costos Indirectos']:,.2f}<br>
-            <b>Rentabilidad:</b> ${row['Rentabilidad']:,.2f}
+            <b>Rentabilidad:</b> ${row['Rentabilidad']:,.2f}<br>
+            <b>% Rentabilidad:</b> {row['% Rentabilidad']:.2%}<br>
+            <b>Riesgo:</b> {row['Riesgo']}
         </div>
         """, unsafe_allow_html=True)
 
@@ -89,14 +92,28 @@ elif st.session_state.page == 'contabilidad':
             submitted = st.form_submit_button("Guardar")
 
             if submitted and name:
-                st.session_state.value_streams.append({
-                    "Flujo": name,
-                    "Ingresos": income,
-                    "Costos Directos": direct_costs,
-                    "Costos Indirectos": indirect_costs,
-                    "Rentabilidad": income - (direct_costs + indirect_costs)
-                })
-                st.success(f"Flujo '{name}' agregado.")
+                if income <= 0:
+                    st.warning("Los ingresos deben ser mayores a cero.")
+                elif name in [v["Flujo"] for v in st.session_state.value_streams]:
+                    st.warning("Ese flujo ya existe.")
+                else:
+                    rentabilidad = income - (direct_costs + indirect_costs)
+                    fecha = datetime.today().date()
+                    porcentaje = rentabilidad / income if income > 0 else 0
+                    riesgo = "🔴 Alto" if rentabilidad < 0 else "🟢 OK"
+                    st.session_state.value_streams.append({
+                        "Flujo": name,
+                        "Ingresos": income,
+                        "Costos Directos": direct_costs,
+                        "Costos Indirectos": indirect_costs,
+                        "Rentabilidad": rentabilidad,
+                        "% Rentabilidad": porcentaje,
+                        "Costo Total": direct_costs + indirect_costs,
+                        "Costo Promedio": (direct_costs + indirect_costs) / income if income > 0 else 0,
+                        "Fecha": str(fecha),
+                        "Riesgo": riesgo
+                    })
+                    st.success(f"Flujo '{name}' agregado.")
 
         st.subheader("📂 Cargar flujos desde archivo Excel")
         uploaded_file = st.file_uploader("Selecciona un archivo .xlsx", type=["xlsx"])
@@ -107,6 +124,11 @@ elif st.session_state.page == 'contabilidad':
                 required = {"Flujo", "Ingresos", "Costos Directos", "Costos Indirectos"}
                 if required.issubset(df_excel.columns):
                     df_excel["Rentabilidad"] = df_excel["Ingresos"] - (df_excel["Costos Directos"] + df_excel["Costos Indirectos"])
+                    df_excel["% Rentabilidad"] = df_excel["Rentabilidad"] / df_excel["Ingresos"]
+                    df_excel["Costo Total"] = df_excel["Costos Directos"] + df_excel["Costos Indirectos"]
+                    df_excel["Costo Promedio"] = df_excel["Costo Total"] / df_excel["Ingresos"]
+                    df_excel["Fecha"] = str(datetime.today().date())
+                    df_excel["Riesgo"] = df_excel["Rentabilidad"].apply(lambda x: "🔴 Alto" if x < 0 else "🟢 OK")
                     st.session_state.value_streams = df_excel.to_dict(orient="records")
                     st.success("Archivo cargado correctamente.")
                 else:
@@ -127,13 +149,14 @@ elif st.session_state.page == 'contabilidad':
             st.session_state.mostrar_graficos = True
 
         if st.session_state.mostrar_graficos:
-            fig1, ax1 = plt.subplots()
+            fig1, ax1 = plt.subplots(figsize=(10, 4))
             ax1.bar(df["Flujo"], df["Rentabilidad"], color="teal")
             ax1.set_ylabel("Rentabilidad ($)")
             ax1.set_title("Rentabilidad por Flujo de Valor")
+            ax1.set_xticklabels(df["Flujo"], rotation=45)
             st.pyplot(fig1)
 
-            fig2, ax2 = plt.subplots()
+            fig2, ax2 = plt.subplots(figsize=(6, 6))
             ax2.pie(df["Ingresos"], labels=df["Flujo"], autopct="%1.1f%%", startangle=90)
             ax2.axis("equal")
             ax2.set_title("Distribución de Ingresos Totales")
@@ -159,26 +182,25 @@ elif st.session_state.page == 'simulacion':
 
     if st.session_state.value_streams:
         df = pd.DataFrame(st.session_state.value_streams)
-        escenario = st.selectbox("Escoge un escenario:", ["Base", "Optimista (+20%)", "Pesimista (-30%)"])
+        variacion = st.slider("Variación de ingresos (%)", -50, 50, 0)
         df_simulado = df.copy()
 
-        if escenario == "Optimista (+20%)":
-            df_simulado["Ingresos"] *= 1.2
-        elif escenario == "Pesimista (-30%)":
-            df_simulado["Ingresos"] *= 0.7
-
+        df_simulado["Ingresos"] *= (1 + variacion / 100)
         df_simulado["Rentabilidad"] = df_simulado["Ingresos"] - (
             df_simulado["Costos Directos"] + df_simulado["Costos Indirectos"]
         )
+        df_simulado["% Rentabilidad"] = df_simulado["Rentabilidad"] / df_simulado["Ingresos"]
+        df_simulado["Riesgo"] = df_simulado["Rentabilidad"].apply(lambda x: "🔴 Alto" if x < 0 else "🟢 OK")
 
         if st.session_state.mode == 'PC':
             st.dataframe(df_simulado)
         else:
             mostrar_tarjetas(df_simulado)
 
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(figsize=(10, 4))
         ax.bar(df_simulado["Flujo"], df_simulado["Rentabilidad"], color="orange")
-        ax.set_title(f"Rentabilidad en Escenario: {escenario}")
+        ax.set_title(f"Rentabilidad en Escenario Simulado ({variacion}%)")
+        ax.set_xticklabels(df_simulado["Flujo"], rotation=45)
         st.pyplot(fig)
 
         if st.session_state.mode == 'PC':
@@ -187,7 +209,7 @@ elif st.session_state.page == 'simulacion':
             st.download_button(
                 label="📥 Descargar escenario simulado",
                 data=csv_sim.getvalue(),
-                file_name=f"escenario_{escenario.lower()}.csv",
+                file_name=f"escenario_{variacion}.csv",
                 mime="text/csv"
             )
 
