@@ -1,4 +1,3 @@
-# lean_accounting.py
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -44,9 +43,11 @@ def mostrar_menu():
         if st.button("📈 Entorno de Análisis y Simulación"):
             st.session_state.page = 'simulacion'
 
+
 def boton_volver():
     if st.button("⬅ Volver al Menú"):
         st.session_state.page = 'menu'
+
 
 def boton_imprimir():
     st.markdown("""
@@ -57,6 +58,7 @@ def boton_imprimir():
         </script>
         <button onclick="printPage()">🖨️ Imprimir Página</button>
         """, unsafe_allow_html=True)
+
 
 def mostrar_tarjetas(df):
     for index, row in df.iterrows():
@@ -113,9 +115,9 @@ elif st.session_state.page == 'contabilidad':
                 st.error(f"Error al leer el archivo: {e}")
 
     if st.session_state.value_streams:
-        st.subheader("📈 Rentabilidad por Flujo")
         df = pd.DataFrame(st.session_state.value_streams)
 
+        st.subheader("📈 Rentabilidad por Flujo")
         if st.session_state.mode == 'PC':
             st.dataframe(df)
         else:
@@ -137,7 +139,8 @@ elif st.session_state.page == 'contabilidad':
             ax2.set_title("Distribución de Ingresos Totales")
             st.pyplot(fig2)
 
-        if st.session_state.mode == 'PC':
+        st.subheader("💾 Exportar datos")
+        if not df.empty:
             csv_buffer = io.StringIO()
             df.to_csv(csv_buffer, index=False)
             st.download_button(
@@ -154,11 +157,8 @@ elif st.session_state.page == 'contabilidad':
 elif st.session_state.page == 'simulacion':
     st.title("📈 Simulador Económico Lean")
 
-    df = pd.DataFrame(st.session_state.value_streams)
-    if df.empty:
-        st.warning("Primero debes ingresar o cargar datos en el módulo contable.")
-        boton_volver()
-    else:
+    if st.session_state.value_streams:
+        df = pd.DataFrame(st.session_state.value_streams)
         escenario = st.selectbox("Escoge un escenario:", ["Base", "Optimista (+20%)", "Pesimista (-30%)"])
         df_simulado = df.copy()
 
@@ -191,6 +191,8 @@ elif st.session_state.page == 'simulacion':
                 mime="text/csv"
             )
 
+    else:
+        st.warning("Primero debes ingresar o cargar datos en el módulo contable.")
+
     boton_imprimir()
     boton_volver()
-
