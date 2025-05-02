@@ -149,14 +149,14 @@ elif st.session_state.page == 'contabilidad':
             st.session_state.mostrar_graficos = True
 
         if st.session_state.mostrar_graficos:
-            fig1, ax1 = plt.subplots(figsize=(10, 4))
+            fig1, ax1 = plt.subplots(figsize=(8, 3))
             ax1.bar(df["Flujo"], df["Rentabilidad"], color="teal")
             ax1.set_ylabel("Rentabilidad ($)")
             ax1.set_title("Rentabilidad por Flujo de Valor")
             ax1.set_xticklabels(df["Flujo"], rotation=45)
             st.pyplot(fig1)
 
-            fig2, ax2 = plt.subplots(figsize=(6, 6))
+            fig2, ax2 = plt.subplots(figsize=(5, 5))
             ax2.pie(df["Ingresos"], labels=df["Flujo"], autopct="%1.1f%%", startangle=90)
             ax2.axis("equal")
             ax2.set_title("Distribución de Ingresos Totales")
@@ -197,11 +197,18 @@ elif st.session_state.page == 'simulacion':
         else:
             mostrar_tarjetas(df_simulado)
 
-        fig, ax = plt.subplots(figsize=(10, 4))
-        ax.bar(df_simulado["Flujo"], df_simulado["Rentabilidad"], color="orange")
-        ax.set_title(f"Rentabilidad en Escenario Simulado ({variacion}%)")
-        ax.set_xticklabels(df_simulado["Flujo"], rotation=45)
+        fig, ax = plt.subplots(figsize=(5, 5))
+        wedges, texts, autotexts = ax.pie(
+            df_simulado['Rentabilidad'],
+            labels=df_simulado['Flujo'],
+            autopct='%1.1f%%',
+            startangle=90
+        )
+        ax.axis('equal')
+        ax.set_title(f"Distribución de Rentabilidad Simulada ({variacion}%)")
         st.pyplot(fig)
+        fig = None  # prevenir doble graficado
+        
 
         if st.session_state.mode == 'PC':
             csv_sim = io.StringIO()
